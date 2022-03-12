@@ -46,6 +46,7 @@ executables:
       - -rtsopts
       - -with-rtsopts=-N
       - -Wall
+      - -O2
     dependencies:
       - rine
 

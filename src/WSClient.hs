@@ -38,28 +38,34 @@ instance ToJSON SubscriptionMessage where
         "streams" .= smStreams sm
       ]
 
+-- Helper
 toText :: ToJSON a => a -> Text
 toText = toStrict . encodeToLazyText
 
+-- Build a subscription message to listen for ledgers
 wsSubscriptionMessage :: Text
 wsSubscriptionMessage = toText $ SubscriptionMessage {smId = "Listen for ledger", smCommand = "subscribe", smStreams = ["ledger"]}
 
+-- Send a subscription message
 wsSubscribe :: WS.ClientApp ()
 wsSubscribe conn = do
   T.putStrLn "Sending subscription"
   WS.sendTextData conn wsSubscriptionMessage
 
+-- Eat the response from the subscription
 wsHandleResponse :: WS.ClientApp ()
 wsHandleResponse conn = do
   _resp :: Text <- WS.receiveData conn
   return ()
 
+-- Receive incoming data from the websocket and produce it as text into the pipeline
 wsClientProducer :: Connection -> Producer Text IO ()
 wsClientProducer conn =
   forever $ do
     msg <- liftIO $ WS.receiveData conn
     yield msg
 
+-- Where the magic happens
 wsClient :: String -> Int -> WS.ClientApp ()
 wsClient host port conn = do
   putStrLn ("Connected to: " <> host)
