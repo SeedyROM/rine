@@ -4,13 +4,12 @@
 
 module Lib where
 
-import Control.Concurrent (forkIO, myThreadId)
+import Control.Concurrent (forkIO, myThreadId, threadDelay)
 import qualified Control.Exception as E
 import Control.Monad (Monad, forever, unless)
 import Control.Monad.Trans (liftIO)
 import Data.Aeson (FromJSON (parseJSON), KeyValue ((.=)), ToJSON (toJSON), decode, object, withObject, (.:))
 import Data.Aeson.Text (encodeToLazyText)
-import Data.Concurrent.Queue.MichaelScott (LinkedQueue, newQ, pushL, tryPopR)
 import Data.Maybe (fromJust)
 import Data.Text (Text)
 import qualified Data.Text as T
@@ -20,17 +19,14 @@ import qualified Data.Text.Lazy.Encoding as T
 import Network.Socket (withSocketsDo)
 import Network.WebSockets (Connection)
 import qualified Network.WebSockets as WS
-import Pipes
-  ( Consumer,
-    MonadIO (liftIO),
-    Pipe,
-    Producer,
-    await,
-    runEffect,
-    yield,
-    (>->),
-    (>~),
-    (~>),
+import Pipes (Consumer, MonadIO (liftIO), Pipe, Producer, await, lift, runEffect, yield, (>->), (>~), (~>))
+import Pipes.Concurrent
+  ( forkIO,
+    fromInput,
+    performGC,
+    spawn,
+    toOutput,
+    unbounded,
   )
 import Pipes.Core (Consumer, Pipe, Producer, runEffect, (>~>))
 import System.Exit
@@ -87,7 +83,7 @@ wsSubscriptionMessage = toText $ SubscriptionMessage {smId = "Listen for ledger"
 
 wsSubscribe :: WS.ClientApp ()
 wsSubscribe conn = do
-  _ <- T.putStrLn "Sending subscription"
+  T.putStrLn "Sending subscription"
   WS.sendTextData conn wsSubscriptionMessage
 
 wsHandleResponse :: WS.ClientApp ()
@@ -101,32 +97,45 @@ wsClientProducer conn =
     msg <- liftIO $ WS.receiveData conn
     yield msg
 
-wsClientWorkerEnqueue :: LinkedQueue LedgerSubscriptionMessage -> Pipe Text LedgerSubscriptionMessage IO ()
-wsClientWorkerEnqueue queue = forever $ do
+wsClientMessageTransformer :: Pipe Text LedgerSubscriptionMessage IO ()
+wsClientMessageTransformer = forever $ do
   msg <- await
   let ledger = fromJust $ decode $ T.encodeUtf8 $ fromStrict msg :: LedgerSubscriptionMessage
-  do
-    _ <- liftIO $ pushL queue ledger
-    yield ledger
+  yield ledger
 
 wsClientConsumer :: Consumer LedgerSubscriptionMessage IO ()
 wsClientConsumer = forever $ do
   msg <- await
-  do liftIO $ print msg
+  do liftIO $ putStrLn $ "Received block: " <> show msg
+
+wsClientProcessor :: Consumer LedgerSubscriptionMessage IO ()
+wsClientProcessor = forever $ do
+  msg <- await
+  lift $ threadDelay 5000000
+  do liftIO $ putStrLn $ "Processed block: " <> show (lsmLedgerIndex msg)
 
 wsClient :: String -> Int -> WS.ClientApp ()
 wsClient host port conn = do
   putStrLn ("Connected to: " <> host)
 
   -- Send subscription
-  _ <- wsSubscribe conn
-  _ <- wsHandleResponse conn
+  wsSubscribe conn
+  wsHandleResponse conn
 
-  -- Setup a process queue
-  q <- newQ :: IO (LinkedQueue LedgerSubscriptionMessage)
+  -- Fancy pipes stuff
+  (inboundOutput, inboundInput) <- spawn unbounded
+  (processorOutput, processorInput) <- spawn unbounded
+
+  -- Spawn our tasks
+  forkIO $
+    do runEffect $ wsClientProducer conn >-> wsClientMessageTransformer >-> toOutput (inboundOutput <> processorOutput)
+  performGC
+  forkIO $
+    do runEffect $ fromInput processorInput >-> wsClientProcessor
+  performGC
 
   -- Run our websocket client pipeline
-  _ <- runEffect $ wsClientProducer conn >-> wsClientWorkerEnqueue q >-> wsClientConsumer
+  runEffect $ fromInput inboundInput >-> wsClientConsumer
 
   putStrLn ("Disconnecting from: " <> host)
   WS.sendClose conn ("Disconnecting" :: Text)
