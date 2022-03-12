@@ -1,6 +1,6 @@
 module Main where
 
-import Lib (wsClientRun)
+import Lib (clientRun)
 
 main :: IO ()
-main = wsClientRun "s2.ripple.com" 443
+main = clientRun "s2.ripple.com" 443
