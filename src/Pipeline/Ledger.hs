@@ -60,6 +60,23 @@ ledgerTransformer = forever $ do
   let ledger = decode $ T.encodeUtf8 $ fromStrict msg :: Maybe Ledger
   Data.Foldable.forM_ ledger yield -- Interesting, this handles Nothings by doing... nothing?
 
+-- | Log some helpful info about the current gap in our ledger collection
+logLedgerGapInfo :: (MonadIO m, Ord a, Num a, Show a) => a -> a -> m ()
+logLedgerGapInfo latestLedger lastProcessedLedger = liftIO $ do
+  Data.Foldable.when (latestLedger > 0 && lastProcessedLedger > 0) $
+    infoM
+      "Ledger"
+      ( "Ledger gap: "
+          <> show
+            (latestLedger - lastProcessedLedger)
+          <> " : ("
+          <> show
+            lastProcessedLedger
+          <> "-"
+          <> show latestLedger
+          <> ")"
+      )
+
 -- | Print info about the received ledger
 ledgerFoundInfo ::
   (Monad m, MonadIO m) =>
@@ -80,19 +97,7 @@ ledgerFoundInfo cache latestLedger lastProcessedLedger = forever $ do
     lastProcessedLedger' <- takeMVar lastProcessedLedger
 
     -- Print ledger gap info if known
-    Data.Foldable.when (latestLedger' > 0 && lastProcessedLedger' > 0) $
-      infoM
-        "Ledger"
-        ( "Ledger gap: "
-            <> show
-              (latestLedger' - lastProcessedLedger')
-            <> " : ("
-            <> show
-              lastProcessedLedger'
-            <> "-"
-            <> show latestLedger'
-            <> ")"
-        )
+    logLedgerGapInfo latestLedger' lastProcessedLedger'
 
     -- Log some information about the ledger
     infoM "Ledger" ("Received ledger: " <> show index)
