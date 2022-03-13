@@ -29,8 +29,9 @@ dependencies:
   - pipes
   - pipes-concurrency
   - stm
-  - lockfree-queue
   - unix
+  - hslogger
+  - envy
 
 library:
   source-dirs: src

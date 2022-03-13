@@ -25,6 +25,7 @@ source-repository head
 
 library
   exposed-modules:
+      Env
       Ledger
       Lib
       Util
@@ -37,7 +38,8 @@ library
   build-depends:
       aeson
     , base >=4.7 && <5
-    , lockfree-queue
+    , envy
+    , hslogger
     , mtl
     , network
     , pipes
@@ -58,7 +60,8 @@ executable rine-exe
   build-depends:
       aeson
     , base >=4.7 && <5
-    , lockfree-queue
+    , envy
+    , hslogger
     , mtl
     , network
     , pipes
@@ -81,7 +84,8 @@ test-suite rine-test
   build-depends:
       aeson
     , base >=4.7 && <5
-    , lockfree-queue
+    , envy
+    , hslogger
     , mtl
     , network
     , pipes

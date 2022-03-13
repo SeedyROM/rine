@@ -19,8 +19,10 @@ import Pipes
     await,
     yield,
   )
+import System.Log.Logger (debugM, infoM)
 import Util (wsClientRun)
 
+-- | A XRP ledger object we get back from a subscription
 data Ledger = Ledger
   { lFeeBase :: Int,
     lFeeRef :: Int,
@@ -36,7 +38,7 @@ data Ledger = Ledger
   deriving (Show)
 
 instance FromJSON Ledger where
-  parseJSON = withObject "ledger_subscription_message" $ \o -> do
+  parseJSON = withObject "ledger" $ \o -> do
     lFeeBase <- o .: "fee_base"
     lFeeRef <- o .: "fee_ref"
     lLedgerHash <- o .: "ledger_hash"
@@ -49,6 +51,7 @@ instance FromJSON Ledger where
     lValidatedLedgers <- o .: "validated_ledgers"
     return Ledger {..}
 
+-- | Message to find a ledger and get all it's data
 data LedgerFetchByIndex = LedgerFetchByIndex
   { lfbiId :: Int,
     lfbiLedgerIndex :: Int,
@@ -76,30 +79,30 @@ instance FromJSON LedgerFetchByIndex where
     lfbiExpand <- o .: "expand"
     return LedgerFetchByIndex {..}
 
--- Convert the ledger JSON into a `Ledger`
+-- | Convert the ledger JSON into a `Ledger`
 ledgerTransformer :: Monad m => Pipe Text Ledger m r
 ledgerTransformer = forever $ do
   msg <- await
   let ledger = decode $ T.encodeUtf8 $ fromStrict msg :: Maybe Ledger
   Data.Foldable.forM_ ledger yield -- Interesting, this handles Nothings by doing... nothing?
 
--- Print info about the received ledger
+-- | Print info about the received ledger
 ledgerFoundInfo :: (Monad m, MonadIO m) => Consumer Ledger m r
 ledgerFoundInfo = forever $ do
   msg <- await
-  liftIO $ putStrLn $ "Received ledger: " <> show msg
+  liftIO $ infoM "Ledger" ("Received ledger: " <> show msg)
 
--- Consumer to take in ledgers and get data from a websocket
+-- | Consumer to take in ledgers and get data from a websocket
 ledgerProcessor :: String -> Int -> Consumer Ledger IO ()
 ledgerProcessor host port = forever $ do
   msg <- await
   ledger <- liftIO $ wsClientRun host port (ledgerGetLedgerData (lLedgerIndex msg))
-  do liftIO $ putStrLn $ "Processed ledger: " <> show ledger
+  do liftIO $ debugM "Ledger" ("Processed ledger: " <> show ledger)
 
--- Use a websocket connection to get a ledger
+-- | Use a websocket connection to get a ledger
 ledgerGetLedgerData :: Int -> WS.ClientApp ()
 ledgerGetLedgerData ledgerIndex conn = do
   _ <- liftIO $ WS.sendTextData conn $ encode $ LedgerFetchByIndex 1 ledgerIndex "ledger" True True
   value :: Text <- WS.receiveData conn
-  liftIO $ print value
+  liftIO $ debugM "Ledger" ("Retrieved ledger: " <> show value)
   WS.sendClose conn ("Bye bye" :: Text)
