@@ -49,10 +49,11 @@ wsSubscriptionMessage :: Text
 wsSubscriptionMessage = toText $ SubscriptionMessage {smId = "Listen for ledger", smCommand = "subscribe", smStreams = ["ledger"]}
 
 -- | Send a subscription message
-wsSubscribe :: WS.ClientApp ()
+wsSubscribe :: (Monad m, MonadIO m) => Connection -> m ()
 wsSubscribe conn = do
-  infoM "WSClient" "Sending subscription"
-  WS.sendTextData conn wsSubscriptionMessage
+  liftIO $ do
+    infoM "WSClient" "Sending subscription"
+    WS.sendTextData conn wsSubscriptionMessage
 
 -- | Eat the response from the subscription
 wsHandleResponse :: (Monad m, MonadIO m) => Connection -> m ()
