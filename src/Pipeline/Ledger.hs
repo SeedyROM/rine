@@ -5,6 +5,7 @@
 
 module Pipeline.Ledger where
 
+import Control.Concurrent (MVar, takeMVar, tryPutMVar, tryTakeMVar)
 import Control.Monad (forever)
 import qualified Control.Monad as Data.Foldable
 import Control.Retry (fullJitterBackoff, limitRetries, retrying)
@@ -14,11 +15,14 @@ import Data.Aeson
     encode,
   )
 import Data.Cache.LRU.IO as LRU (AtomicLRU, lookup)
-import Data.Maybe (isJust, isNothing)
+import Data.Maybe (fromJust, isJust, isNothing)
 import Data.Text (Text)
 import Data.Text.Lazy (fromStrict)
 import qualified Data.Text.Lazy.Encoding as T
 import Domain.Ledger
+  ( Ledger (lLedgerIndex),
+    LedgerFetchByIndex (LedgerFetchByIndex),
+  )
 import Domain.Transaction (FullLedger)
 import qualified Network.WebSockets as WS
 import Pipes
@@ -33,7 +37,12 @@ import System.Timeout (timeout)
 import Websockets.Util (WSApiResponse (wsarResult), WSApiResponseData (wsardLedger), wsClientRun)
 
 -- | Helper to setup a RetryPolicy and retrying for our tasks
-ledgerProcessorRetry :: Int -> Int -> Int -> IO a -> IO (Maybe a)
+ledgerProcessorRetry ::
+  Int ->
+  Int ->
+  Int ->
+  IO a ->
+  IO (Maybe a)
 ledgerProcessorRetry backoff limit timeoutAmount f =
   retrying
     (fullJitterBackoff backoff <> limitRetries limit)
@@ -52,21 +61,55 @@ ledgerTransformer = forever $ do
   Data.Foldable.forM_ ledger yield -- Interesting, this handles Nothings by doing... nothing?
 
 -- | Print info about the received ledger
-ledgerFoundInfo :: (Monad m, MonadIO m) => AtomicLRU Int Ledger -> Consumer Ledger m r
-ledgerFoundInfo cache = forever $ do
+ledgerFoundInfo ::
+  (Monad m, MonadIO m) =>
+  AtomicLRU Int Ledger ->
+  MVar Int ->
+  MVar Int ->
+  Consumer Ledger m r
+ledgerFoundInfo cache latestLedger lastProcessedLedger = forever $ do
   msg <- await
+  let index = lLedgerIndex msg
   liftIO $ do
+    -- Check our LRU cache to see if we've seen it before
     exists <- LRU.lookup (lLedgerIndex msg) cache
-    infoM "Ledger" ("Received ledger: " <> show (lLedgerIndex msg))
-    infoM "Ledger" ("Has processed ledger this run: " <> show (isJust exists))
+    _ <- tryPutMVar latestLedger index
+
+    -- Setup ledger tracking
+    latestLedger' <- takeMVar latestLedger
+    lastProcessedLedger' <- takeMVar lastProcessedLedger
+
+    -- Print ledger gap info if known
+    Data.Foldable.when (latestLedger' > 0 && lastProcessedLedger' > 0) $
+      infoM
+        "Ledger"
+        ( "Ledger gap: "
+            <> show
+              (latestLedger' - lastProcessedLedger')
+            <> " : ("
+            <> show
+              lastProcessedLedger'
+            <> "-"
+            <> show latestLedger'
+            <> ")"
+        )
+
+    -- Log some information about the ledger
+    infoM "Ledger" ("Received ledger: " <> show index)
+    debugM "Ledger" ("Has processed ledger this run: " <> show (isJust exists))
     debugM "Ledger" ("Received ledger data: " <> show msg)
 
 -- TODO: This needs to be greedy workers not in order
 
 -- | Consumer to take in ledgers and get data from a websocket,
 -- | also should probably reuse the a websocket connection not make a new one
-ledgerProcessor :: (Monad m, MonadIO m) => String -> Int -> Consumer Ledger m r
-ledgerProcessor host port = forever $ do
+ledgerProcessor ::
+  (Monad m, MonadIO m) =>
+  String ->
+  Int ->
+  MVar Int ->
+  Consumer Ledger m r
+ledgerProcessor host port lastProcessedLedger = forever $ do
   msg <- await
   liftIO $ do
     result <-
@@ -76,10 +119,12 @@ ledgerProcessor host port = forever $ do
             lLedgerIndex msg
     case result of
       Just ledger -> liftIO $ do
+        _ <- tryPutMVar lastProcessedLedger $ lLedgerIndex msg
         infoM "Ledger" ("Processed ledger: " <> show (lLedgerIndex msg))
         debugM "Ledger" ("Processed ledger data: " <> show ledger)
-      Nothing -> liftIO $ do
-        errorM "Ledger" ("Failed to retrieve ledger: " <> show (lLedgerIndex msg))
+      Nothing ->
+        liftIO $
+          errorM "Ledger" ("Failed to retrieve ledger: " <> show (lLedgerIndex msg))
 
 -- | Use a websocket connection to get a ledger
 ledgerGetLedgerData :: Int -> WS.ClientApp (Maybe FullLedger)

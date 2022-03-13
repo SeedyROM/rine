@@ -4,7 +4,7 @@
 
 module Websockets.WSClient where
 
-import Control.Concurrent (forkIO)
+import Control.Concurrent (MVar, forkIO, newMVar)
 import Control.Monad (forever)
 import Control.Monad.Trans (liftIO)
 import Data.Aeson (KeyValue ((.=)), ToJSON (toJSON), object)
@@ -12,7 +12,7 @@ import Data.Aeson.Text (encodeToLazyText)
 import Data.Cache.LRU.IO (AtomicLRU, newAtomicLRU)
 import Data.Text (Text)
 import Data.Text.Lazy (toStrict)
-import Domain.Ledger
+import Domain.Ledger (Ledger)
 import Network.WebSockets (Connection)
 import qualified Network.WebSockets as WS
 import Pipeline.Ledger (ledgerFoundInfo, ledgerProcessor, ledgerTransformer)
@@ -61,7 +61,10 @@ wsHandleResponse conn = do
   return ()
 
 -- | Receive incoming data from the websocket and produce it as text into the pipeline
-wsClientProducer :: (Monad m, MonadIO m) => Connection -> Producer Text m r
+wsClientProducer ::
+  (Monad m, MonadIO m) =>
+  Connection ->
+  Producer Text m r
 wsClientProducer conn =
   forever $ do
     msg <- liftIO $ WS.receiveData conn
@@ -79,18 +82,33 @@ wsClient host port conn = do
   -- LRU Cache for blocks
   cache <- newAtomicLRU (Just 1024) :: IO (AtomicLRU Int Ledger)
 
+  -- Ledger gap state
+  latestLedger <- newMVar 0 :: IO (MVar Int)
+  lastProcessedLedger <- newMVar 0 :: IO (MVar Int)
+
   -- Fancy pipes stuff
   (inboundOutput, inboundInput) <- spawn unbounded
   (processorOutput, processorInput) <- spawn unbounded
 
   -- Spawn our tasks
   _ <- forkIO $
-    do runEffect $ wsClientProducer conn >-> ledgerTransformer >-> toOutput (inboundOutput <> processorOutput)
+    do
+      runEffect $
+        wsClientProducer conn
+          >-> ledgerTransformer
+          >-> toOutput (inboundOutput <> processorOutput)
   _ <- forkIO $
-    do runEffect $ fromInput processorInput >-> ledgerProcessor host port
+    do
+      runEffect $
+        fromInput processorInput >-> ledgerProcessor host port lastProcessedLedger
 
   -- Run our websocket client pipeline
-  runEffect $ fromInput inboundInput >-> ledgerFoundInfo cache
+  runEffect $
+    fromInput inboundInput
+      >-> ledgerFoundInfo
+        cache
+        latestLedger
+        lastProcessedLedger
 
   -- TODO: This is never reached, not sure how to handle cleanup
   infoM "WSClient" ("Disconnecting from: " <> host)
