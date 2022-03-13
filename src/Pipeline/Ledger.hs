@@ -5,7 +5,7 @@
 
 module Pipeline.Ledger where
 
-import Control.Concurrent (MVar, takeMVar, tryPutMVar, tryTakeMVar)
+import Control.Concurrent (MVar, takeMVar, tryPutMVar)
 import Control.Monad (forever)
 import qualified Control.Monad as Data.Foldable
 import Control.Retry (fullJitterBackoff, limitRetries, retrying)
@@ -15,7 +15,7 @@ import Data.Aeson
     encode,
   )
 import Data.Cache.LRU.IO as LRU (AtomicLRU, lookup)
-import Data.Maybe (fromJust, isJust, isNothing)
+import Data.Maybe (isJust, isNothing)
 import Data.Text (Text)
 import Data.Text.Lazy (fromStrict)
 import qualified Data.Text.Lazy.Encoding as T
