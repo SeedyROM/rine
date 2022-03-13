@@ -31,13 +31,17 @@ newtype Config = Config
 instance FromEnv Config where
   fromEnv _ = Config <$> envMaybe "LOG_LEVEL" .!= "info"
 
+-- | Default formatter string
+defaultFormatterString :: String
+defaultFormatterString = "[$utcTime : $loggername : $prio] $msg"
+
 -- | Setup our logging environment
 setupLogging :: Config -> IO ()
 setupLogging config = do
   stdOutHandler <-
     streamHandler stdout level >>= \lh ->
       return $
-        setFormatter lh (simpleLogFormatter "[$time : $loggername : $prio] $msg")
+        setFormatter lh (simpleLogFormatter defaultFormatterString)
   updateGlobalLogger rootLoggerName (setLevel level . setHandlers [stdOutHandler])
   where
     level = stringToPriority $ configLogLevel config

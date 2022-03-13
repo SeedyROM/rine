@@ -90,7 +90,8 @@ ledgerTransformer = forever $ do
 ledgerFoundInfo :: (Monad m, MonadIO m) => Consumer Ledger m r
 ledgerFoundInfo = forever $ do
   msg <- await
-  liftIO $ infoM "Ledger" ("Received ledger: " <> show msg)
+  liftIO $ infoM "Ledger" ("Received ledger: " <> show (lLedgerIndex msg))
+  liftIO $ debugM "Ledger" ("Received ledger data: " <> show msg)
 
 -- | Consumer to take in ledgers and get data from a websocket
 ledgerProcessor :: String -> Int -> Consumer Ledger IO ()
