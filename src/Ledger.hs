@@ -6,9 +6,19 @@ module Ledger where
 
 import Control.Monad (forever)
 import qualified Control.Monad as Data.Foldable
-import Data.Aeson (FromJSON, KeyValue ((.=)), ToJSON, decode, encode, object, withObject, (.:))
+import Data.Aeson
+  ( FromJSON,
+    KeyValue ((.=)),
+    ToJSON,
+    decode,
+    eitherDecode,
+    encode,
+    object,
+    withObject,
+    (.:),
+  )
 import Data.Aeson.Types (FromJSON (parseJSON), ToJSON (toJSON))
-import Data.Cache.LRU.IO as LRU
+import Data.Cache.LRU.IO as LRU (AtomicLRU, insert, lookup)
 import Data.Maybe (isJust)
 import Data.Text (Text)
 import Data.Text.Lazy (fromStrict)
@@ -21,8 +31,9 @@ import Pipes
     await,
     yield,
   )
-import System.Log.Logger (debugM, infoM)
-import Util (wsClientRun)
+import System.Log.Logger (debugM, errorM, infoM)
+import Transaction (FullLedger)
+import Util (WSApiResponse (wsarResult), wsClientRun)
 
 -- | A XRP ledger object we get back from a subscription
 data Ledger = Ledger
@@ -103,15 +114,28 @@ ledgerProcessor :: (Monad m, MonadIO m) => String -> Int -> AtomicLRU Int Ledger
 ledgerProcessor host port cache = forever $ do
   msg <- await
   liftIO $ do
-    _ledger <- wsClientRun host port $ ledgerGetLedgerData $ lLedgerIndex msg
     LRU.insert (lLedgerIndex msg) msg cache -- Add our block to the LRU cache
+    ledger <- wsClientRun host port $ ledgerGetLedgerData $ lLedgerIndex msg
     infoM "Ledger" ("Processed ledger: " <> show (lLedgerIndex msg))
+    debugM "Ledger" ("Processed ledger data: " <> show ledger)
 
 -- | Use a websocket connection to get a ledger
-ledgerGetLedgerData :: Int -> WS.ClientApp ()
+ledgerGetLedgerData :: Int -> WS.ClientApp (Either String FullLedger)
 ledgerGetLedgerData ledgerIndex conn = do
+  -- Await a message
   _ <- liftIO $ WS.sendTextData conn $ encode $ LedgerFetchByIndex 1 ledgerIndex "ledger" True True
   value :: Text <- WS.receiveData conn
-  liftIO $ do
-    debugM "Ledger" ("Retrieved ledger: " <> show value)
-  WS.sendClose conn ("Bye bye" :: Text)
+
+  -- Parse the response
+  let response = eitherDecode $ T.encodeUtf8 $ fromStrict value :: Either String (WSApiResponse FullLedger)
+
+  -- Handle errors or return
+  case response of
+    Left e -> liftIO $ do
+      errorM "Ledger" e
+      WS.sendClose conn ("Bye bye" :: Text)
+      return (Left e)
+    Right r -> liftIO $ do
+      debugM "Ledger" ("Retrieved ledger: " <> show r)
+      WS.sendClose conn ("Bye bye" :: Text)
+      return (wsarResult r)

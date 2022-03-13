@@ -10,16 +10,17 @@ import qualified Network.WebSockets as WS
 
 -- | Response from the websocket client
 data WSApiResponse a = WSApiResponse
-  { wsarId :: Text,
-    wsarResult :: Maybe a,
+  { wsarId :: Int,
+    wsarResult :: Either String a,
     wsarStatus :: Text,
     wsarType :: Text
   }
+  deriving (Show)
 
 instance FromJSON a => FromJSON (WSApiResponse a) where
   parseJSON = withObject "response" $ \o -> do
     wsarId <- o .: "id"
-    wsarResult <- o .: "result"
+    wsarResult <- o .: "result.ledger" -- TODO: This is a hack for now, need to pass the value in somehow
     wsarStatus <- o .: "status"
     wsarType <- o .: "type"
     return WSApiResponse {..}

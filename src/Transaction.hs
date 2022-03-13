@@ -4,8 +4,11 @@
 
 module Transaction where
 
-import Data.Aeson (FromJSON (parseJSON), withObject, (.:))
+import Data.Aeson (FromJSON (parseJSON), decode, withObject, (.:))
+import Data.Maybe
 import Data.Text (Text)
+import Data.Text.Lazy (fromStrict)
+import qualified Data.Text.Lazy.Encoding as T
 
 type Addr = Text
 
@@ -71,7 +74,7 @@ data Transaction = Transaction
     tFee :: Integer,
     tFlags :: Flags,
     tLastLedgerSequence :: Integer,
-    tLimitAmount :: TransactionLimitAmount,
+    tLimitAmount :: Maybe TransactionLimitAmount,
     tSequence :: Integer,
     tSigningPubKey :: Text,
     tTransactionType :: Text,
@@ -80,7 +83,7 @@ data Transaction = Transaction
   deriving (Show)
 
 instance FromJSON Transaction where
-  parseJSON = withObject "transaction_limit_amount" $ \o -> do
+  parseJSON = withObject "transaction" $ \o -> do
     tTransactionIndex <- o .: "TransactionIndex"
     tTransactionResult <- o .: "TransactionResult"
     tHash <- o .: "Hash"
@@ -94,3 +97,6 @@ instance FromJSON Transaction where
     tTransactionType <- o .: "TransactionType"
     tTxnSignature <- o .: "TxnSignature"
     return Transaction {..}
+
+parseFullLedger :: Text -> FullLedger
+parseFullLedger = fromJust . decode . T.encodeUtf8 . fromStrict
