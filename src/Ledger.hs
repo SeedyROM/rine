@@ -7,7 +7,7 @@ module Ledger where
 
 import Control.Monad (forever)
 import qualified Control.Monad as Data.Foldable
-import Control.Retry (retryPolicyDefault, retrying)
+import Control.Retry (fullJitterBackoff, limitRetries, retrying)
 import Data.Aeson
   ( FromJSON,
     KeyValue ((.=)),
@@ -95,6 +95,18 @@ instance FromJSON LedgerFetchByIndex where
     lfbiExpand <- o .: "expand"
     return LedgerFetchByIndex {..}
 
+-- | Helper to setup a RetryPolicy and retrying for our tasks
+ledgerProcessorRetry :: Int -> Int -> Int -> IO a -> IO (Maybe a)
+ledgerProcessorRetry backoff limit timeoutAmount f =
+  retrying
+    (fullJitterBackoff backoff <> limitRetries limit)
+    (const $ return . isNothing)
+    \_ -> timeout timeoutAmount f
+
+-- | Default retry
+defaultLedgerProcessorRetry :: IO a -> IO (Maybe a)
+defaultLedgerProcessorRetry = ledgerProcessorRetry 50000 10 10000000
+
 -- | Convert the ledger JSON into a `Ledger`
 ledgerTransformer :: Monad m => Pipe Text Ledger m r
 ledgerTransformer = forever $ do
@@ -120,10 +132,11 @@ ledgerProcessor :: (Monad m, MonadIO m) => String -> Int -> Consumer Ledger m r
 ledgerProcessor host port = forever $ do
   msg <- await
   liftIO $ do
-    result <- retrying
-      retryPolicyDefault
-      (const $ return . isNothing)
-      \_ -> timeout 10000000 $ wsClientRun host port $ ledgerGetLedgerData $ lLedgerIndex msg
+    result <-
+      defaultLedgerProcessorRetry $
+        wsClientRun host port $
+          ledgerGetLedgerData $
+            lLedgerIndex msg
     case result of
       Just ledger -> liftIO $ do
         infoM "Ledger" ("Processed ledger: " <> show (lLedgerIndex msg))

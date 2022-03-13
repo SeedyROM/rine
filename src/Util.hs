@@ -3,7 +3,7 @@
 
 module Util where
 
-import Data.Aeson
+import Data.Aeson (FromJSON (parseJSON), withObject, (.:))
 import Data.Text (Text)
 import Network.Socket (withSocketsDo)
 import qualified Network.WebSockets as WS
