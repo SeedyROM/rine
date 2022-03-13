@@ -32,6 +32,7 @@ import Pipes
     yield,
   )
 import System.Log.Logger (debugM, errorM, infoM)
+import System.Timeout (timeout)
 import Transaction (FullLedger)
 import Util (WSApiResponse (wsarResult), WSApiResponseData (wsardLedger), wsClientRun)
 
@@ -109,14 +110,20 @@ ledgerFoundInfo cache = forever $ do
     infoM "Ledger" ("Has processed ledger this run: " <> show (isJust exists))
     debugM "Ledger" ("Received ledger data: " <> show msg)
 
+-- TODO: This needs to be greedy workers not in order
+
 -- | Consumer to take in ledgers and get data from a websocket
 ledgerProcessor :: (Monad m, MonadIO m) => String -> Int -> Consumer Ledger m r
 ledgerProcessor host port = forever $ do
   msg <- await
   liftIO $ do
-    ledger <- wsClientRun host port $ ledgerGetLedgerData $ lLedgerIndex msg
-    infoM "Ledger" ("Processed ledger: " <> show (lLedgerIndex msg))
-    debugM "Ledger" ("Processed ledger data: " <> show ledger)
+    result <- timeout 20000000 $ wsClientRun host port $ ledgerGetLedgerData $ lLedgerIndex msg
+    case result of
+      Just ledger -> liftIO $ do
+        infoM "Ledger" ("Processed ledger: " <> show (lLedgerIndex msg))
+        debugM "Ledger" ("Processed ledger data: " <> show ledger)
+      Nothing -> liftIO $ do
+        errorM "Ledger" ("Failed to retrieve ledger: " <> show (lLedgerIndex msg))
 
 -- | Use a websocket connection to get a ledger
 ledgerGetLedgerData :: Int -> WS.ClientApp (Maybe FullLedger)

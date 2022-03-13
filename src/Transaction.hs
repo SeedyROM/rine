@@ -4,11 +4,8 @@
 
 module Transaction where
 
-import Data.Aeson (FromJSON (parseJSON), decode, withObject, (.:), (.:?))
-import Data.Maybe
+import Data.Aeson (FromJSON (parseJSON), withObject, (.:), (.:?))
 import Data.Text (Text)
-import Data.Text.Lazy (fromStrict)
-import qualified Data.Text.Lazy.Encoding as T
 
 type Addr = Text
 
@@ -97,6 +94,3 @@ instance FromJSON Transaction where
     tTransactionType <- o .: "TransactionType"
     tTxnSignature <- o .:? "TxnSignature"
     return Transaction {..}
-
-parseFullLedger :: Text -> FullLedger
-parseFullLedger = fromJust . decode . T.encodeUtf8 . fromStrict
