@@ -15,7 +15,7 @@ import Data.Text.Lazy (toStrict)
 import Ledger (Ledger, ledgerFoundInfo, ledgerProcessor, ledgerTransformer)
 import Network.WebSockets (Connection)
 import qualified Network.WebSockets as WS
-import Pipes (Producer, runEffect, yield, (>->))
+import Pipes (MonadIO, Producer, runEffect, yield, (>->))
 import Pipes.Concurrent
   ( fromInput,
     spawn,
@@ -54,13 +54,13 @@ wsSubscribe conn = do
   WS.sendTextData conn wsSubscriptionMessage
 
 -- | Eat the response from the subscription
-wsHandleResponse :: WS.ClientApp ()
+wsHandleResponse :: (Monad m, MonadIO m) => Connection -> m ()
 wsHandleResponse conn = do
-  _resp :: Text <- WS.receiveData conn
+  _resp :: Text <- liftIO $ WS.receiveData conn
   return ()
 
 -- | Receive incoming data from the websocket and produce it as text into the pipeline
-wsClientProducer :: Connection -> Producer Text IO ()
+wsClientProducer :: (Monad m, MonadIO m) => Connection -> Producer Text m r
 wsClientProducer conn =
   forever $ do
     msg <- liftIO $ WS.receiveData conn

@@ -98,7 +98,7 @@ ledgerFoundInfo cache = forever $ do
   liftIO $ debugM "Ledger" ("Received ledger data: " <> show msg)
 
 -- | Consumer to take in ledgers and get data from a websocket
-ledgerProcessor :: String -> Int -> AtomicLRU Int Ledger -> Consumer Ledger IO ()
+ledgerProcessor :: (Monad m, MonadIO m) => String -> Int -> AtomicLRU Int Ledger -> Consumer Ledger m r
 ledgerProcessor host port cache = forever $ do
   msg <- await
   _ledger <- liftIO $ wsClientRun host port $ ledgerGetLedgerData $ lLedgerIndex msg
