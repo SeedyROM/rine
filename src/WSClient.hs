@@ -86,7 +86,7 @@ wsClient host port conn = do
   _ <- forkIO $
     do runEffect $ wsClientProducer conn >-> ledgerTransformer >-> toOutput (inboundOutput <> processorOutput)
   _ <- forkIO $
-    do runEffect $ fromInput processorInput >-> ledgerProcessor host port cache
+    do runEffect $ fromInput processorInput >-> ledgerProcessor host port
 
   -- Run our websocket client pipeline
   runEffect $ fromInput inboundInput >-> ledgerFoundInfo cache

@@ -18,7 +18,7 @@ import Data.Aeson
     (.:),
   )
 import Data.Aeson.Types (FromJSON (parseJSON), ToJSON (toJSON))
-import Data.Cache.LRU.IO as LRU (AtomicLRU, insert, lookup)
+import Data.Cache.LRU.IO as LRU (AtomicLRU, lookup)
 import Data.Maybe (isJust)
 import Data.Text (Text)
 import Data.Text.Lazy (fromStrict)
@@ -33,7 +33,7 @@ import Pipes
   )
 import System.Log.Logger (debugM, errorM, infoM)
 import Transaction (FullLedger)
-import Util (WSApiResponse (wsarResult), wsClientRun)
+import Util (WSApiResponse (wsarResult), WSApiResponseData (wsardLedger), wsClientRun)
 
 -- | A XRP ledger object we get back from a subscription
 data Ledger = Ledger
@@ -110,17 +110,16 @@ ledgerFoundInfo cache = forever $ do
     debugM "Ledger" ("Received ledger data: " <> show msg)
 
 -- | Consumer to take in ledgers and get data from a websocket
-ledgerProcessor :: (Monad m, MonadIO m) => String -> Int -> AtomicLRU Int Ledger -> Consumer Ledger m r
-ledgerProcessor host port cache = forever $ do
+ledgerProcessor :: (Monad m, MonadIO m) => String -> Int -> Consumer Ledger m r
+ledgerProcessor host port = forever $ do
   msg <- await
   liftIO $ do
-    LRU.insert (lLedgerIndex msg) msg cache -- Add our block to the LRU cache
     ledger <- wsClientRun host port $ ledgerGetLedgerData $ lLedgerIndex msg
     infoM "Ledger" ("Processed ledger: " <> show (lLedgerIndex msg))
     debugM "Ledger" ("Processed ledger data: " <> show ledger)
 
 -- | Use a websocket connection to get a ledger
-ledgerGetLedgerData :: Int -> WS.ClientApp (Either String FullLedger)
+ledgerGetLedgerData :: Int -> WS.ClientApp (Maybe FullLedger)
 ledgerGetLedgerData ledgerIndex conn = do
   -- Await a message
   _ <- liftIO $ WS.sendTextData conn $ encode $ LedgerFetchByIndex 1 ledgerIndex "ledger" True True
@@ -128,14 +127,14 @@ ledgerGetLedgerData ledgerIndex conn = do
 
   -- Parse the response
   let response = eitherDecode $ T.encodeUtf8 $ fromStrict value :: Either String (WSApiResponse FullLedger)
-
   -- Handle errors or return
   case response of
     Left e -> liftIO $ do
       errorM "Ledger" e
       WS.sendClose conn ("Bye bye" :: Text)
-      return (Left e)
+      return Nothing
     Right r -> liftIO $ do
-      debugM "Ledger" ("Retrieved ledger: " <> show r)
+      let ledger = wsardLedger $ wsarResult r
+      debugM "Ledger" ("Retrieved ledger: " <> show ledger)
       WS.sendClose conn ("Bye bye" :: Text)
-      return (wsarResult r)
+      return ledger

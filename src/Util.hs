@@ -3,15 +3,25 @@
 
 module Util where
 
-import Data.Aeson (FromJSON (parseJSON), withObject, (.:))
+import Data.Aeson
 import Data.Text (Text)
 import Network.Socket (withSocketsDo)
 import qualified Network.WebSockets as WS
 
+newtype WSApiResponseData a = WSApiResponseData
+  { wsardLedger :: Maybe a
+  }
+  deriving (Show)
+
+instance FromJSON a => FromJSON (WSApiResponseData a) where
+  parseJSON = withObject "result" $ \o -> do
+    wsardLedger <- o .: "ledger"
+    return WSApiResponseData {..}
+
 -- | Response from the websocket client
 data WSApiResponse a = WSApiResponse
   { wsarId :: Int,
-    wsarResult :: Either String a,
+    wsarResult :: WSApiResponseData a,
     wsarStatus :: Text,
     wsarType :: Text
   }
@@ -20,7 +30,7 @@ data WSApiResponse a = WSApiResponse
 instance FromJSON a => FromJSON (WSApiResponse a) where
   parseJSON = withObject "response" $ \o -> do
     wsarId <- o .: "id"
-    wsarResult <- o .: "result.ledger" -- TODO: This is a hack for now, need to pass the value in somehow
+    wsarResult <- o .: "result"
     wsarStatus <- o .: "status"
     wsarType <- o .: "type"
     return WSApiResponse {..}

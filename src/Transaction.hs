@@ -4,7 +4,7 @@
 
 module Transaction where
 
-import Data.Aeson (FromJSON (parseJSON), decode, withObject, (.:))
+import Data.Aeson (FromJSON (parseJSON), decode, withObject, (.:), (.:?))
 import Data.Maybe
 import Data.Text (Text)
 import Data.Text.Lazy (fromStrict)
@@ -23,11 +23,11 @@ data FullLedger = FullLedger
     flClosed :: Bool,
     flHash :: Text,
     flLedgerHash :: Text,
-    flLedgerIndex :: Int,
-    flParentCloseTime :: Text,
+    flLedgerIndex :: Text,
+    flParentCloseTime :: Int,
     flParentHash :: Text,
-    flSeqNum :: Integer,
-    flTotalCoins :: Integer,
+    flSeqNum :: Text,
+    flTotalCoins :: Text,
     flTransactionHash :: Text,
     flTransactions :: [Transaction]
   }
@@ -53,49 +53,49 @@ instance FromJSON FullLedger where
     return FullLedger {..}
 
 data TransactionLimitAmount = TransactionLimitAmount
-  { tlaCurrency :: Text,
-    tlaIssuer :: Addr,
-    tlaValue :: Integer
+  { tlaCurrency :: Maybe Text,
+    tlaIssuer :: Maybe Addr,
+    tlaValue :: Text
   }
   deriving (Show)
 
 instance FromJSON TransactionLimitAmount where
   parseJSON = withObject "transaction_limit_amount" $ \o -> do
-    tlaCurrency <- o .: "Currency"
-    tlaIssuer <- o .: "Issuer"
-    tlaValue <- o .: "Value"
+    tlaCurrency <- o .:? "currency"
+    tlaIssuer <- o .:? "issuer"
+    tlaValue <- o .: "value"
     return TransactionLimitAmount {..}
 
 data Transaction = Transaction
-  { tTransactionIndex :: Int,
-    tTransactionResult :: String,
+  { tTransactionIndex :: Maybe Integer,
+    tTransactionResult :: Maybe String,
     tHash :: Text,
     tAccount :: Addr,
-    tFee :: Integer,
-    tFlags :: Flags,
-    tLastLedgerSequence :: Integer,
+    tFee :: Text,
+    tFlags :: Maybe Flags,
+    tLastLedgerSequence :: Maybe Integer,
     tLimitAmount :: Maybe TransactionLimitAmount,
     tSequence :: Integer,
     tSigningPubKey :: Text,
     tTransactionType :: Text,
-    tTxnSignature :: Text
+    tTxnSignature :: Maybe Text
   }
   deriving (Show)
 
 instance FromJSON Transaction where
   parseJSON = withObject "transaction" $ \o -> do
-    tTransactionIndex <- o .: "TransactionIndex"
-    tTransactionResult <- o .: "TransactionResult"
-    tHash <- o .: "Hash"
+    tTransactionIndex <- o .:? "TransactionIndex"
+    tTransactionResult <- o .:? "TransactionResult"
+    tHash <- o .: "hash"
     tAccount <- o .: "Account"
     tFee <- o .: "Fee"
-    tFlags <- o .: "Flags"
-    tLastLedgerSequence <- o .: "LastLedgerSequence"
-    tLimitAmount <- o .: "LimitAmount"
+    tFlags <- o .:? "Flags"
+    tLastLedgerSequence <- o .:? "LastLedgerSequence"
+    tLimitAmount <- o .:? "LimitAmount"
     tSequence <- o .: "Sequence"
     tSigningPubKey <- o .: "SigningPubKey"
     tTransactionType <- o .: "TransactionType"
-    tTxnSignature <- o .: "TxnSignature"
+    tTxnSignature <- o .:? "TxnSignature"
     return Transaction {..}
 
 parseFullLedger :: Text -> FullLedger
