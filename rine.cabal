@@ -46,6 +46,7 @@ library
     , network
     , pipes
     , pipes-concurrency
+    , retry
     , stm
     , text
     , unix
@@ -69,6 +70,7 @@ executable rine-exe
     , network
     , pipes
     , pipes-concurrency
+    , retry
     , rine
     , stm
     , text
@@ -94,6 +96,7 @@ test-suite rine-test
     , network
     , pipes
     , pipes-concurrency
+    , retry
     , rine
     , stm
     , text

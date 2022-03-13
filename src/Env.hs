@@ -16,7 +16,7 @@ stringToPriority level = case level of
   "debug" -> DEBUG
   "info" -> INFO
   "notice" -> NOTICE
-  "warning" -> WARNING
+  "warn" -> WARNING
   "error" -> ERROR
   "critical" -> CRITICAL
   "alert" -> ALERT

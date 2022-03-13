@@ -1,3 +1,4 @@
+{-# LANGUAGE BlockArguments #-}
 {-# LANGUAGE OverloadedStrings #-}
 {-# LANGUAGE RecordWildCards #-}
 {-# LANGUAGE ScopedTypeVariables #-}
@@ -6,6 +7,7 @@ module Ledger where
 
 import Control.Monad (forever)
 import qualified Control.Monad as Data.Foldable
+import Control.Retry (retryPolicyDefault, retrying)
 import Data.Aeson
   ( FromJSON,
     KeyValue ((.=)),
@@ -19,7 +21,7 @@ import Data.Aeson
   )
 import Data.Aeson.Types (FromJSON (parseJSON), ToJSON (toJSON))
 import Data.Cache.LRU.IO as LRU (AtomicLRU, lookup)
-import Data.Maybe (isJust)
+import Data.Maybe (isJust, isNothing)
 import Data.Text (Text)
 import Data.Text.Lazy (fromStrict)
 import qualified Data.Text.Lazy.Encoding as T
@@ -112,12 +114,16 @@ ledgerFoundInfo cache = forever $ do
 
 -- TODO: This needs to be greedy workers not in order
 
--- | Consumer to take in ledgers and get data from a websocket
+-- | Consumer to take in ledgers and get data from a websocket,
+-- | also should probably reuse the a websocket connection not make a new one
 ledgerProcessor :: (Monad m, MonadIO m) => String -> Int -> Consumer Ledger m r
 ledgerProcessor host port = forever $ do
   msg <- await
   liftIO $ do
-    result <- timeout 20000000 $ wsClientRun host port $ ledgerGetLedgerData $ lLedgerIndex msg
+    result <- retrying
+      retryPolicyDefault
+      (const $ return . isNothing)
+      \_ -> timeout 10000000 $ wsClientRun host port $ ledgerGetLedgerData $ lLedgerIndex msg
     case result of
       Just ledger -> liftIO $ do
         infoM "Ledger" ("Processed ledger: " <> show (lLedgerIndex msg))

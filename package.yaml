@@ -33,6 +33,7 @@ dependencies:
   - hslogger
   - envy
   - lrucache
+  - retry
 
 library:
   source-dirs: src
