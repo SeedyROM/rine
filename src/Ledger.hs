@@ -96,8 +96,8 @@ ledgerFoundInfo = forever $ do
 ledgerProcessor :: String -> Int -> Consumer Ledger IO ()
 ledgerProcessor host port = forever $ do
   msg <- await
-  ledger <- liftIO $ wsClientRun host port (ledgerGetLedgerData (lLedgerIndex msg))
-  do liftIO $ debugM "Ledger" ("Processed ledger: " <> show ledger)
+  _ledger <- liftIO $ wsClientRun host port (ledgerGetLedgerData (lLedgerIndex msg))
+  do liftIO $ infoM "Ledger" ("Processed ledger: " <> show (lLedgerIndex msg))
 
 -- | Use a websocket connection to get a ledger
 ledgerGetLedgerData :: Int -> WS.ClientApp ()
