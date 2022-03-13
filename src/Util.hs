@@ -1,7 +1,28 @@
+{-# LANGUAGE OverloadedStrings #-}
+{-# LANGUAGE RecordWildCards #-}
+
 module Util where
 
+import Data.Aeson (FromJSON (parseJSON), withObject, (.:))
+import Data.Text (Text)
 import Network.Socket (withSocketsDo)
 import qualified Network.WebSockets as WS
+
+-- | Response from the websocket client
+data WSApiResponse a = WSApiResponse
+  { wsarId :: Text,
+    wsarResult :: Maybe a,
+    wsarStatus :: Text,
+    wsarType :: Text
+  }
+
+instance FromJSON a => FromJSON (WSApiResponse a) where
+  parseJSON = withObject "response" $ \o -> do
+    wsarId <- o .: "id"
+    wsarResult <- o .: "result"
+    wsarStatus <- o .: "status"
+    wsarType <- o .: "type"
+    return WSApiResponse {..}
 
 -- | Start a websocket client with curried WS.ClientApp
 wsClientRun :: String -> Int -> WS.ClientApp a -> IO a

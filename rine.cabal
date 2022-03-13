@@ -28,6 +28,7 @@ library
       Env
       Ledger
       Lib
+      Transaction
       Util
       WSClient
   other-modules:

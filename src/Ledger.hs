@@ -92,23 +92,26 @@ ledgerTransformer = forever $ do
 ledgerFoundInfo :: (Monad m, MonadIO m) => AtomicLRU Int Ledger -> Consumer Ledger m r
 ledgerFoundInfo cache = forever $ do
   msg <- await
-  exists <- liftIO $ LRU.lookup (lLedgerIndex msg) cache
-  liftIO $ infoM "Ledger" ("Received ledger: " <> show (lLedgerIndex msg))
-  liftIO $ infoM "Ledger" ("Has processed ledger this run: " <> show (isJust exists))
-  liftIO $ debugM "Ledger" ("Received ledger data: " <> show msg)
+  liftIO $ do
+    exists <- LRU.lookup (lLedgerIndex msg) cache
+    infoM "Ledger" ("Received ledger: " <> show (lLedgerIndex msg))
+    infoM "Ledger" ("Has processed ledger this run: " <> show (isJust exists))
+    debugM "Ledger" ("Received ledger data: " <> show msg)
 
 -- | Consumer to take in ledgers and get data from a websocket
 ledgerProcessor :: (Monad m, MonadIO m) => String -> Int -> AtomicLRU Int Ledger -> Consumer Ledger m r
 ledgerProcessor host port cache = forever $ do
   msg <- await
-  _ledger <- liftIO $ wsClientRun host port $ ledgerGetLedgerData $ lLedgerIndex msg
-  liftIO $ LRU.insert (lLedgerIndex msg) msg cache -- Add our block to the LRU cache
-  liftIO $ infoM "Ledger" ("Processed ledger: " <> show (lLedgerIndex msg))
+  liftIO $ do
+    _ledger <- wsClientRun host port $ ledgerGetLedgerData $ lLedgerIndex msg
+    LRU.insert (lLedgerIndex msg) msg cache -- Add our block to the LRU cache
+    infoM "Ledger" ("Processed ledger: " <> show (lLedgerIndex msg))
 
 -- | Use a websocket connection to get a ledger
 ledgerGetLedgerData :: Int -> WS.ClientApp ()
 ledgerGetLedgerData ledgerIndex conn = do
   _ <- liftIO $ WS.sendTextData conn $ encode $ LedgerFetchByIndex 1 ledgerIndex "ledger" True True
   value :: Text <- WS.receiveData conn
-  liftIO $ debugM "Ledger" ("Retrieved ledger: " <> show value)
+  liftIO $ do
+    debugM "Ledger" ("Retrieved ledger: " <> show value)
   WS.sendClose conn ("Bye bye" :: Text)
