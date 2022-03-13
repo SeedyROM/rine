@@ -1,10 +1,10 @@
 name: rine
 version: 0.1.0.0
-github: "githubuser/rine"
+github: "SeedyROM/rine"
 license: BSD3
-author: "Author name here"
-maintainer: "example@example.com"
-copyright: "2022 Author name here"
+author: "Zack Kollar"
+maintainer: "me@seedyrom.io"
+copyright: "2022 Zack Kollar"
 
 extra-source-files:
   - README.md
@@ -32,6 +32,7 @@ dependencies:
   - unix
   - hslogger
   - envy
+  - lrucache
 
 library:
   source-dirs: src

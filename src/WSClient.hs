@@ -9,9 +9,10 @@ import Control.Monad (forever)
 import Control.Monad.Trans (liftIO)
 import Data.Aeson (KeyValue ((.=)), ToJSON (toJSON), object)
 import Data.Aeson.Text (encodeToLazyText)
+import Data.Cache.LRU.IO (AtomicLRU, newAtomicLRU)
 import Data.Text (Text)
 import Data.Text.Lazy (toStrict)
-import Ledger (ledgerFoundInfo, ledgerProcessor, ledgerTransformer)
+import Ledger (Ledger, ledgerFoundInfo, ledgerProcessor, ledgerTransformer)
 import Network.WebSockets (Connection)
 import qualified Network.WebSockets as WS
 import Pipes (Producer, runEffect, yield, (>->))
@@ -74,6 +75,9 @@ wsClient host port conn = do
   wsSubscribe conn
   wsHandleResponse conn
 
+  -- LRU Cache for blocks
+  cache <- newAtomicLRU (Just 1024) :: IO (AtomicLRU Int Ledger)
+
   -- Fancy pipes stuff
   (inboundOutput, inboundInput) <- spawn unbounded
   (processorOutput, processorInput) <- spawn unbounded
@@ -82,10 +86,10 @@ wsClient host port conn = do
   _ <- forkIO $
     do runEffect $ wsClientProducer conn >-> ledgerTransformer >-> toOutput (inboundOutput <> processorOutput)
   _ <- forkIO $
-    do runEffect $ fromInput processorInput >-> ledgerProcessor host port
+    do runEffect $ fromInput processorInput >-> ledgerProcessor host port cache
 
   -- Run our websocket client pipeline
-  runEffect $ fromInput inboundInput >-> ledgerFoundInfo
+  runEffect $ fromInput inboundInput >-> ledgerFoundInfo cache
 
   -- TODO: This is never reached, not sure how to handle cleanup
   infoM "WSClient" ("Disconnecting from: " <> host)

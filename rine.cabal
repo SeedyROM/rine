@@ -7,11 +7,11 @@ cabal-version: 1.12
 name:           rine
 version:        0.1.0.0
 description:    Please see the README on GitHub at <https://github.com/githubuser/rine#readme>
-homepage:       https://github.com/githubuser/rine#readme
-bug-reports:    https://github.com/githubuser/rine/issues
-author:         Author name here
-maintainer:     example@example.com
-copyright:      2022 Author name here
+homepage:       https://github.com/SeedyROM/rine#readme
+bug-reports:    https://github.com/SeedyROM/rine/issues
+author:         Zack Kollar
+maintainer:     me@seedyrom.io
+copyright:      2022 Zack Kollar
 license:        BSD3
 license-file:   LICENSE
 build-type:     Simple
@@ -21,7 +21,7 @@ extra-source-files:
 
 source-repository head
   type: git
-  location: https://github.com/githubuser/rine
+  location: https://github.com/SeedyROM/rine
 
 library
   exposed-modules:
@@ -40,6 +40,7 @@ library
     , base >=4.7 && <5
     , envy
     , hslogger
+    , lrucache
     , mtl
     , network
     , pipes
@@ -62,6 +63,7 @@ executable rine-exe
     , base >=4.7 && <5
     , envy
     , hslogger
+    , lrucache
     , mtl
     , network
     , pipes
@@ -86,6 +88,7 @@ test-suite rine-test
     , base >=4.7 && <5
     , envy
     , hslogger
+    , lrucache
     , mtl
     , network
     , pipes

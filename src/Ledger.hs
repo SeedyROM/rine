@@ -8,6 +8,8 @@ import Control.Monad (forever)
 import qualified Control.Monad as Data.Foldable
 import Data.Aeson (FromJSON, KeyValue ((.=)), ToJSON, decode, encode, object, withObject, (.:))
 import Data.Aeson.Types (FromJSON (parseJSON), ToJSON (toJSON))
+import Data.Cache.LRU.IO as LRU
+import Data.Maybe (isJust)
 import Data.Text (Text)
 import Data.Text.Lazy (fromStrict)
 import qualified Data.Text.Lazy.Encoding as T
@@ -87,18 +89,21 @@ ledgerTransformer = forever $ do
   Data.Foldable.forM_ ledger yield -- Interesting, this handles Nothings by doing... nothing?
 
 -- | Print info about the received ledger
-ledgerFoundInfo :: (Monad m, MonadIO m) => Consumer Ledger m r
-ledgerFoundInfo = forever $ do
+ledgerFoundInfo :: (Monad m, MonadIO m) => AtomicLRU Int Ledger -> Consumer Ledger m r
+ledgerFoundInfo cache = forever $ do
   msg <- await
+  exists <- liftIO $ LRU.lookup (lLedgerIndex msg) cache
   liftIO $ infoM "Ledger" ("Received ledger: " <> show (lLedgerIndex msg))
+  liftIO $ infoM "Ledger" ("Has processed ledger this run: " <> show (isJust exists))
   liftIO $ debugM "Ledger" ("Received ledger data: " <> show msg)
 
 -- | Consumer to take in ledgers and get data from a websocket
-ledgerProcessor :: String -> Int -> Consumer Ledger IO ()
-ledgerProcessor host port = forever $ do
+ledgerProcessor :: String -> Int -> AtomicLRU Int Ledger -> Consumer Ledger IO ()
+ledgerProcessor host port cache = forever $ do
   msg <- await
-  _ledger <- liftIO $ wsClientRun host port (ledgerGetLedgerData (lLedgerIndex msg))
-  do liftIO $ infoM "Ledger" ("Processed ledger: " <> show (lLedgerIndex msg))
+  _ledger <- liftIO $ wsClientRun host port $ ledgerGetLedgerData $ lLedgerIndex msg
+  liftIO $ LRU.insert (lLedgerIndex msg) msg cache -- Add our block to the LRU cache
+  liftIO $ infoM "Ledger" ("Processed ledger: " <> show (lLedgerIndex msg))
 
 -- | Use a websocket connection to get a ledger
 ledgerGetLedgerData :: Int -> WS.ClientApp ()
