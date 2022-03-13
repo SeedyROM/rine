@@ -1,7 +1,7 @@
 {-# LANGUAGE OverloadedStrings #-}
 {-# LANGUAGE RecordWildCards #-}
 
-module Util where
+module Websockets.Util where
 
 import Data.Aeson (FromJSON (parseJSON), withObject, (.:))
 import Data.Text (Text)

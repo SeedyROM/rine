@@ -1,7 +1,7 @@
 module Main where
 
-import Env (bootstrapEnv)
-import Lib (clientRun)
+import Client (clientRun)
+import System.Env (bootstrapEnv)
 
 main :: IO ()
 main = do

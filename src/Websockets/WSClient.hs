@@ -2,7 +2,7 @@
 {-# LANGUAGE RecordWildCards #-}
 {-# LANGUAGE ScopedTypeVariables #-}
 
-module WSClient where
+module Websockets.WSClient where
 
 import Control.Concurrent (forkIO)
 import Control.Monad (forever)
@@ -12,9 +12,10 @@ import Data.Aeson.Text (encodeToLazyText)
 import Data.Cache.LRU.IO (AtomicLRU, newAtomicLRU)
 import Data.Text (Text)
 import Data.Text.Lazy (toStrict)
-import Ledger (Ledger, ledgerFoundInfo, ledgerProcessor, ledgerTransformer)
+import Domain.Ledger
 import Network.WebSockets (Connection)
 import qualified Network.WebSockets as WS
+import Pipeline.Ledger (ledgerFoundInfo, ledgerProcessor, ledgerTransformer)
 import Pipes (MonadIO, Producer, runEffect, yield, (>->))
 import Pipes.Concurrent
   ( fromInput,

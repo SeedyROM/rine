@@ -1,7 +1,7 @@
-module Lib where
+module Client where
 
-import Util (wsClientRun)
-import WSClient (wsClient)
+import Websockets.Util (wsClientRun)
+import Websockets.WSClient (wsClient)
 
 -- | Start the websocket pipeline
 -- TODO: This could be curried?

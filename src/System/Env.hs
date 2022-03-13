@@ -1,7 +1,7 @@
 -- This is needed for our priority conversion, somehow it thinks the constructors are giant strings lol.
 {-# OPTIONS_GHC -Wno-incomplete-patterns #-}
 
-module Env where
+module System.Env where
 
 import System.Envy (FromEnv (fromEnv), decodeEnv, envMaybe, (.!=))
 import System.IO (stdout)
