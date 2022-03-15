@@ -33,7 +33,7 @@ instance FromEnv Config where
 
 -- | Default formatter string
 defaultFormatterString :: String
-defaultFormatterString = "[$utcTime - $loggername - $prio] $msg"
+defaultFormatterString = "[$utcTime - [($tid) $loggername]: $prio] $msg"
 
 -- | Setup our logging environment
 setupLogging :: Config -> IO ()

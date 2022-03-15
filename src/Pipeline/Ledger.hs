@@ -6,8 +6,7 @@
 module Pipeline.Ledger where
 
 import Control.Concurrent (MVar, takeMVar, tryPutMVar)
-import Control.Monad (forever)
-import qualified Control.Monad as Data.Foldable
+import Control.Monad (forM_, forever, when)
 import Control.Retry (fullJitterBackoff, limitRetries, retrying)
 import Data.Aeson
   ( decode,
@@ -58,24 +57,28 @@ ledgerTransformer :: Monad m => Pipe Text Ledger m r
 ledgerTransformer = forever $ do
   msg <- await
   let ledger = decode $ T.encodeUtf8 $ fromStrict msg :: Maybe Ledger
-  Data.Foldable.forM_ ledger yield -- Interesting, this handles Nothings by doing... nothing?
+  forM_ ledger yield -- Interesting, this handles Nothings by doing... nothing?
 
 -- | Log some helpful info about the current gap in our ledger collection
 logLedgerGapInfo :: (MonadIO m, Ord a, Num a, Show a) => a -> a -> m ()
 logLedgerGapInfo latestLedger lastProcessedLedger = liftIO $ do
-  Data.Foldable.when (latestLedger > 0 && lastProcessedLedger > 0) $
-    infoM
-      "Ledger"
-      ( "Ledger gap: "
-          <> show
-            (latestLedger - lastProcessedLedger)
-          <> " : ("
-          <> show
-            lastProcessedLedger
-          <> "-"
-          <> show latestLedger
-          <> ")"
-      )
+  when
+    hasKnownGap
+    $ do
+      infoM
+        "Ledger"
+        ( "Ledger gap: "
+            <> show
+              (latestLedger - lastProcessedLedger)
+            <> " : ("
+            <> show
+              lastProcessedLedger
+            <> "-"
+            <> show latestLedger
+            <> ")"
+        )
+  where
+    hasKnownGap = (latestLedger > 0 && lastProcessedLedger > 0) && (latestLedger - lastProcessedLedger > 1)
 
 -- | Print info about the received ledger
 ledgerFoundInfo ::
@@ -100,7 +103,7 @@ ledgerFoundInfo cache latestLedger lastProcessedLedger = forever $ do
     logLedgerGapInfo latestLedger' lastProcessedLedger'
 
     -- Log some information about the ledger
-    infoM "Ledger" ("Received ledger: " <> show index)
+    infoM "Ledger" ("Received ledger:  " <> show index)
     debugM "Ledger" ("Has processed ledger this run: " <> show (isJust exists))
     debugM "Ledger" ("Received ledger data: " <> show msg)
 
