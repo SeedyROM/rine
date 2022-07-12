@@ -58,6 +58,10 @@ ledgerTransformer = forever $ do
   msg <- await
   let ledger = decode $ T.encodeUtf8 $ fromStrict msg :: Maybe Ledger
   forM_ ledger yield -- Interesting, this handles Nothings by doing... nothing?
+  -- Later Zack now knows forM traverses a monad (_ means ignore the result),
+  -- in this case it's a Maybe, so a valid traversal of Just is a value or
+  -- no computation for Nothing.
+  -- ~~~ tha moar u no ~~~
 
 -- | Log some helpful info about the current gap in our ledger collection
 logLedgerGapInfo :: (MonadIO m, Ord a, Num a, Show a) => a -> a -> m ()

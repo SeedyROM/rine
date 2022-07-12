@@ -27,6 +27,7 @@ library
   exposed-modules:
       Client
       Domain.Ledger
+      Domain.Model
       Domain.Transaction
       Pipeline.Ledger
       System.Env
